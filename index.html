@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS 위치 확인</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .button-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: bold;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .info-box.show {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .info-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .label {
+            font-weight: bold;
+            color: #667eea;
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .value {
+            color: #333;
+            font-size: 16px;
+            word-break: break-all;
+        }
+
+        .map-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            transition: background 0.3s;
+            font-weight: bold;
+        }
+
+        .map-link:hover {
+            background: #218838;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 4px solid #dc3545;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        .loading {
+            text-align: center;
+            color: #667eea;
+            margin-top: 20px;
+            display: none;
+            font-size: 16px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% {
+                content: '.';
+            }
+            40% {
+                content: '..';
+            }
+            60%, 100% {
+                content: '...';
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📍 내 위치 확인하기</h1>
+        
+        <div class="button-container">
+            <button id="getLocationBtn" onclick="getLocation()">위치 정보 가져오기</button>
+        </div>
+
+        <div class="loading" id="loading">위치 정보를 가져오는 중</div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="info-box" id="infoBox">
+            <div class="info-item">
+                <span class="label">위도 (Latitude)</span>
+                <span class="value" id="latitude">-</span>
+            </div>
+            <div class="info-item">
+                <span class="label">경도 (Longitude)</span>
+                <span class="value" id="longitude">-</span>
+            </div>
+            <div class="info-item">
+                <span class="label">정확도 (Accuracy)</span>
+                <span class="value" id="accuracy">-</span>
+            </div>
+            <div class="info-item">
+                <span class="label">고도 (Altitude)</span>
+                <span class="value" id="altitude">-</span>
+            </div>
+            <div class="info-item">
+                <span class="label">속도 (Speed)</span>
+                <span class="value" id="speed">-</span>
+            </div>
+            <div style="text-align: center;">
+                <a class="map-link" id="mapLink" href="#" target="_blank">🗺️ 지도에서 보기</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getLocation() {
+            // 브라우저가 Geolocation을 지원하는지 확인
+            if (!navigator.geolocation) {
+                showError('이 브라우저는 위치 정보를 지원하지 않습니다.');
+                return;
+            }
+
+            // UI 초기화
+            hideError();
+            hideInfo();
+            showLoading();
+            disableButton();
+
+            // 위치 정보 요청
+            navigator.geolocation.getCurrentPosition(
+                successCallback,
+                errorCallback,
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        function successCallback(position) {
+            hideLoading();
+            enableButton();
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            const altitude = position.coords.altitude;
+            const speed = position.coords.speed;
+
+            // 정보 표시
+            document.getElementById('latitude').textContent = lat.toFixed(6);
+            document.getElementById('longitude').textContent = lon.toFixed(6);
+            document.getElementById('accuracy').textContent = accuracy ? `약 ${Math.round(accuracy)}m` : '정보 없음';
+            document.getElementById('altitude').textContent = altitude ? `${Math.round(altitude)}m` : '정보 없음';
+            document.getElementById('speed').textContent = speed ? `${speed.toFixed(2)} m/s` : '정보 없음';
+
+            // 지도 링크 설정 (Google Maps)
+            const mapUrl = `https://www.google.com/maps?q=${lat},${lon}`;
+            document.getElementById('mapLink').href = mapUrl;
+
+            showInfo();
+        }
+
+        function errorCallback(error) {
+            hideLoading();
+            enableButton();
+
+            let errorMessage = '';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = '위치 정보 접근이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = '위치 정보를 사용할 수 없습니다.';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = '위치 정보 요청 시간이 초과되었습니다.';
+                    break;
+                default:
+                    errorMessage = '알 수 없는 오류가 발생했습니다.';
+            }
+
+            showError(errorMessage);
+        }
+
+        function showError(message) {
+            const errorBox = document.getElementById('error');
+            errorBox.textContent = message;
+            errorBox.classList.add('show');
+        }
+
+        function hideError() {
+            document.getElementById('error').classList.remove('show');
+        }
+
+        function showInfo() {
+            document.getElementById('infoBox').classList.add('show');
+        }
+
+        function hideInfo() {
+            document.getElementById('infoBox').classList.remove('show');
+        }
+
+        function showLoading() {
+            document.getElementById('loading').classList.add('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.remove('show');
+        }
+
+        function disableButton() {
+            document.getElementById('getLocationBtn').disabled = true;
+        }
+
+        function enableButton() {
+            document.getElementById('getLocationBtn').disabled = false;
+        }
+    </script>
+</body>
+</html>
