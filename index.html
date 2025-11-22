@@ -7,24 +7,13 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
 </head>
 <body>
+    <div class="map-container" id="map"></div>
+    
     <div class="container">
         <h1>📍 내 위치 저장하기</h1>
-        
-        <div class="config-box">
-            <h3>⚙️ Supabase 설정</h3>
-            <div class="input-group">
-                <label>Supabase URL</label>
-                <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
-                <small>Supabase 프로젝트의 URL을 입력하세요</small>
-            </div>
-            <div class="input-group">
-                <label>Supabase Anon Key</label>
-                <input type="text" id="supabaseKey" placeholder="your-anon-key">
-                <small>Supabase 프로젝트의 anon public key를 입력하세요</small>
-            </div>
-        </div>
         
         <div class="button-container">
             <button id="getLocationBtn" onclick="getLocation()">위치 정보 가져오기</button>

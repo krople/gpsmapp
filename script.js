@@ -1,20 +1,48 @@
 let supabaseClient = null;
 let currentPosition = null;
+let map = null;
+let markers = [];
+let infoWindows = [];
+
+// Google Maps 초기화
+function initMap() {
+    // 기본 위치는 서울
+    const center = { lat: 37.5665, lng: 126.9780 };
+    
+    map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 12,
+        center: center,
+        mapTypeControl: true,
+        streetViewControl: true,
+        fullscreenControl: true,
+        zoomControl: true,
+        styles: [
+            {
+                featureType: 'poi',
+                elementType: 'labels',
+                stylers: [{ visibility: 'on' }]
+            }
+        ]
+    });
+    
+    // Supabase 설정 및 위치 로드는 지도 초기화 후에
+    if (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG?.url && SUPABASE_CONFIG?.anonKey) {
+        initSupabase();
+        loadAndDisplayLocations();
+    }
+}
+
+// 페이지 로드 시 Google Maps가 자동으로 initMap 호출
+window.initMap = initMap;
 
 // Supabase 클라이언트 초기화
 function initSupabase() {
-    // config.js에서 설정을 불러오거나, 입력 필드의 값을 사용
-    let url = SUPABASE_CONFIG?.url || '';
-    let key = SUPABASE_CONFIG?.anonKey || '';
-    
-    // config.js에 설정이 없으면 입력 필드에서 가져오기
-    if (!url || !key) {
-        url = document.getElementById('supabaseUrl').value.trim();
-        key = document.getElementById('supabaseKey').value.trim();
-    }
+    // config.js에서 설정을 불러오기
+    const url = SUPABASE_CONFIG?.url || '';
+    const key = SUPABASE_CONFIG?.anonKey || '';
 
     if (!url || !key) {
-        showError('Supabase URL과 Key를 모두 입력해주세요.');
+        console.error('config.js에 Supabase 설정이 필요합니다.');
         return false;
     }
 
@@ -22,51 +50,148 @@ function initSupabase() {
         supabaseClient = supabase.createClient(url, key);
         return true;
     } catch (error) {
-        showError('Supabase 초기화 실패: ' + error.message);
+        console.error('Supabase 초기화 실패:', error.message);
         return false;
     }
 }
 
 // 저장된 설정 로드
 function loadSettings() {
-    // config.js에 설정이 있으면 그것을 우선 사용
+    // config.js에서 Supabase 설정 확인
     if (SUPABASE_CONFIG?.url && SUPABASE_CONFIG?.anonKey) {
-        document.getElementById('supabaseUrl').value = SUPABASE_CONFIG.url;
-        document.getElementById('supabaseKey').value = SUPABASE_CONFIG.anonKey;
-        // 입력 필드를 읽기 전용으로 설정
-        document.getElementById('supabaseUrl').readOnly = true;
-        document.getElementById('supabaseKey').readOnly = true;
-        document.querySelector('.config-box').style.opacity = '0.7';
-        initSupabase();
+        if (initSupabase()) {
+            // 저장된 위치 로드 및 지도에 표시
+            loadAndDisplayLocations();
+        }
     } else {
-        // config.js에 설정이 없으면 localStorage에서 불러오기
-        const savedUrl = localStorage.getItem('supabaseUrl');
-        const savedKey = localStorage.getItem('supabaseKey');
+        console.warn('config.js에 Supabase 설정이 필요합니다.');
+    }
+}
+
+// 저장된 위치들을 로드하고 지도에 표시
+async function loadAndDisplayLocations() {
+    if (!initSupabase()) {
+        return;
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('locations')
+            .select('*')
+            .order('timestamp', { ascending: false })
+            .limit(50);
+
+        if (error) {
+            console.error('위치 로드 실패:', error);
+            return;
+        }
+
+        if (data && data.length > 0) {
+            displayLocationsOnMap(data);
+        }
+    } catch (error) {
+        console.error('위치 로드 오류:', error);
+    }
+}
+
+// 지도에 위치들을 마커로 표시
+function displayLocationsOnMap(locations) {
+    // 기존 마커 제거
+    markers.forEach(marker => marker.setMap(null));
+    markers = [];
+    infoWindows.forEach(infoWindow => infoWindow.close());
+    infoWindows = [];
+
+    if (!locations || locations.length === 0) {
+        return;
+    }
+
+    const bounds = new google.maps.LatLngBounds();
+
+    // 각 위치에 마커 추가
+    locations.forEach((loc, index) => {
+        const isFirst = index === 0;
+        const position = { lat: loc.latitude, lng: loc.longitude };
         
-        if (savedUrl) document.getElementById('supabaseUrl').value = savedUrl;
-        if (savedKey) document.getElementById('supabaseKey').value = savedKey;
+        // 마커 생성
+        const marker = new google.maps.Marker({
+            position: position,
+            map: map,
+            title: isFirst ? '최근 위치' : `위치 #${locations.length - index}`,
+            label: {
+                text: isFirst ? '📍' : String(locations.length - index),
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: 'bold'
+            },
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 15,
+                fillColor: isFirst ? '#28a745' : '#667eea',
+                fillOpacity: 1,
+                strokeColor: 'white',
+                strokeWeight: 3
+            }
+        });
+
+        // 정보 창 내용
+        const date = new Date(loc.timestamp);
+        const dateStr = date.toLocaleString('ko-KR');
+        const mapUrl = `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
         
-        if (savedUrl && savedKey) {
-            initSupabase();
+        const infoWindow = new google.maps.InfoWindow({
+            content: `
+                <div style="min-width: 200px; padding: 10px;">
+                    <strong style="color: ${isFirst ? '#28a745' : '#667eea'}; font-size: 16px;">
+                        ${isFirst ? '📍 최근 위치' : `#${locations.length - index} 위치`}
+                    </strong><br>
+                    <small style="color: #666;">${dateStr}</small><br>
+                    <div style="margin: 8px 0; font-size: 12px; line-height: 1.5;">
+                        <strong>위도:</strong> ${loc.latitude.toFixed(6)}<br>
+                        <strong>경도:</strong> ${loc.longitude.toFixed(6)}<br>
+                        <strong>정확도:</strong> ${loc.accuracy ? Math.round(loc.accuracy) + 'm' : '정보 없음'}
+                    </div>
+                    <a href="${mapUrl}" target="_blank" style="
+                        display: inline-block;
+                        padding: 5px 10px;
+                        background: #17a2b8;
+                        color: white;
+                        text-decoration: none;
+                        border-radius: 3px;
+                        font-size: 12px;
+                        margin-top: 5px;
+                    ">🗺️ 상세보기</a>
+                </div>
+            `
+        });
+
+        marker.addListener('click', () => {
+            // 다른 정보창 닫기
+            infoWindows.forEach(iw => iw.close());
+            infoWindow.open(map, marker);
+        });
+
+        markers.push(marker);
+        infoWindows.push(infoWindow);
+        bounds.extend(position);
+    });
+
+    // 모든 마커가 보이도록 지도 조정
+    if (markers.length > 0) {
+        map.fitBounds(bounds);
+        
+        // 마커가 하나만 있으면 적절한 줌 레벨로
+        if (markers.length === 1) {
+            google.maps.event.addListenerOnce(map, 'bounds_changed', function() {
+                map.setZoom(Math.min(15, map.getZoom()));
+            });
         }
     }
 }
 
-// 설정 저장
-function saveSettings() {
-    const url = document.getElementById('supabaseUrl').value.trim();
-    const key = document.getElementById('supabaseKey').value.trim();
-    
-    localStorage.setItem('supabaseUrl', url);
-    localStorage.setItem('supabaseKey', key);
-}
 
-// 페이지 로드 시 설정 불러오기
-window.addEventListener('load', loadSettings);
 
-// 설정 변경 시 자동 저장
-document.getElementById('supabaseUrl').addEventListener('change', saveSettings);
-document.getElementById('supabaseKey').addEventListener('change', saveSettings);
+// Google Maps가 로드되면 자동으로 initMap이 호출됨
 
 function getLocation() {
     // 브라우저가 Geolocation을 지원하는지 확인
@@ -118,6 +243,71 @@ function successCallback(position) {
     // 저장 버튼 활성화
     document.getElementById('saveLocationBtn').disabled = false;
 
+    // 현재 위치를 지도에 임시 마커로 표시
+    if (map) {
+        const position = { lat: lat, lng: lon };
+        
+        // 이전 임시 마커 제거
+        if (window.tempLocationMarker) {
+            window.tempLocationMarker.setMap(null);
+        }
+        if (window.tempLocationCircle) {
+            window.tempLocationCircle.setMap(null);
+        }
+        
+        // 정확도 원 추가
+        window.tempLocationCircle = new google.maps.Circle({
+            strokeColor: '#007bff',
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: '#007bff',
+            fillOpacity: 0.2,
+            map: map,
+            center: position,
+            radius: accuracy || 50
+        });
+        
+        // 임시 마커 추가 (파란색)
+        window.tempLocationMarker = new google.maps.Marker({
+            position: position,
+            map: map,
+            title: '현재 위치 (미저장)',
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 12,
+                fillColor: '#007bff',
+                fillOpacity: 1,
+                strokeColor: 'white',
+                strokeWeight: 3
+            },
+            label: {
+                text: '📍',
+                color: 'white',
+                fontSize: '12px'
+            }
+        });
+        
+        const infoWindow = new google.maps.InfoWindow({
+            content: `
+                <div style="min-width: 150px; padding: 8px;">
+                    <strong style="color: #007bff;">📍 현재 위치</strong><br>
+                    <small style="color: #999;">아직 저장되지 않음</small>
+                </div>
+            `
+        });
+        
+        window.tempLocationMarker.addListener('click', () => {
+            infoWindow.open(map, window.tempLocationMarker);
+        });
+        
+        // 지도 중심을 현재 위치로 이동
+        map.setCenter(position);
+        map.setZoom(15);
+        
+        // 정보창 자동 열기
+        infoWindow.open(map, window.tempLocationMarker);
+    }
+
     showInfo();
 }
 
@@ -160,6 +350,9 @@ async function saveLocation() {
 
         showSuccess('위치 정보가 성공적으로 저장되었습니다! 🎉');
         document.getElementById('saveLocationBtn').disabled = false;
+        
+        // 저장 후 지도 새로고침
+        loadAndDisplayLocations();
     } catch (error) {
         hideLoading();
         enableButton();
