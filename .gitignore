@@ -1,0 +1,17 @@
+# Supabase 설정 파일 (민감한 정보 포함)
+# config.js
+
+# Node modules
+node_modules/
+
+# 환경 변수
+.env
+.env.local
+
+# 에디터 설정
+.vscode/
+.idea/
+
+# OS 생성 파일
+.DS_Store
+Thumbs.db

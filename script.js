@@ -3,8 +3,15 @@ let currentPosition = null;
 
 // Supabase 클라이언트 초기화
 function initSupabase() {
-    const url = document.getElementById('supabaseUrl').value.trim();
-    const key = document.getElementById('supabaseKey').value.trim();
+    // config.js에서 설정을 불러오거나, 입력 필드의 값을 사용
+    let url = SUPABASE_CONFIG?.url || '';
+    let key = SUPABASE_CONFIG?.anonKey || '';
+    
+    // config.js에 설정이 없으면 입력 필드에서 가져오기
+    if (!url || !key) {
+        url = document.getElementById('supabaseUrl').value.trim();
+        key = document.getElementById('supabaseKey').value.trim();
+    }
 
     if (!url || !key) {
         showError('Supabase URL과 Key를 모두 입력해주세요.');
@@ -22,14 +29,26 @@ function initSupabase() {
 
 // 저장된 설정 로드
 function loadSettings() {
-    const savedUrl = localStorage.getItem('supabaseUrl');
-    const savedKey = localStorage.getItem('supabaseKey');
-    
-    if (savedUrl) document.getElementById('supabaseUrl').value = savedUrl;
-    if (savedKey) document.getElementById('supabaseKey').value = savedKey;
-    
-    if (savedUrl && savedKey) {
+    // config.js에 설정이 있으면 그것을 우선 사용
+    if (SUPABASE_CONFIG?.url && SUPABASE_CONFIG?.anonKey) {
+        document.getElementById('supabaseUrl').value = SUPABASE_CONFIG.url;
+        document.getElementById('supabaseKey').value = SUPABASE_CONFIG.anonKey;
+        // 입력 필드를 읽기 전용으로 설정
+        document.getElementById('supabaseUrl').readOnly = true;
+        document.getElementById('supabaseKey').readOnly = true;
+        document.querySelector('.config-box').style.opacity = '0.7';
         initSupabase();
+    } else {
+        // config.js에 설정이 없으면 localStorage에서 불러오기
+        const savedUrl = localStorage.getItem('supabaseUrl');
+        const savedKey = localStorage.getItem('supabaseKey');
+        
+        if (savedUrl) document.getElementById('supabaseUrl').value = savedUrl;
+        if (savedKey) document.getElementById('supabaseKey').value = savedKey;
+        
+        if (savedUrl && savedKey) {
+            initSupabase();
+        }
     }
 }
 
