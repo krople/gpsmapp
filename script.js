@@ -21,12 +21,32 @@ function initMap() {
 
 // 페이지 로드 시 초기화
 window.addEventListener('DOMContentLoaded', () => {
-    initMap();
-    loadSettings();
+    console.log('페이지 로드 완료, 지도 초기화 시작');
+    
+    // 지도 먼저 초기화
+    try {
+        initMap();
+        console.log('지도 초기화 성공');
+    } catch (error) {
+        console.error('지도 초기화 실패:', error);
+    }
+    
+    // Supabase 설정 확인 및 로드
+    try {
+        loadSettings();
+    } catch (error) {
+        console.error('설정 로드 실패:', error);
+    }
 });
 
 // Supabase 클라이언트 초기화
 function initSupabase() {
+    // config.js가 로드되지 않았을 수 있으므로 안전하게 체크
+    if (typeof SUPABASE_CONFIG === 'undefined') {
+        console.warn('config.js 파일이 로드되지 않았거나 SUPABASE_CONFIG가 정의되지 않았습니다.');
+        return false;
+    }
+    
     // config.js에서 설정을 불러오기
     const url = SUPABASE_CONFIG?.url || '';
     const key = SUPABASE_CONFIG?.anonKey || '';
@@ -38,6 +58,7 @@ function initSupabase() {
 
     try {
         supabaseClient = supabase.createClient(url, key);
+        console.log('Supabase 초기화 성공');
         return true;
     } catch (error) {
         console.error('Supabase 초기화 실패:', error.message);
@@ -47,6 +68,13 @@ function initSupabase() {
 
 // 저장된 설정 로드
 function loadSettings() {
+    // config.js가 정의되지 않았을 경우 안전하게 처리
+    if (typeof SUPABASE_CONFIG === 'undefined') {
+        console.warn('config.js 파일을 찾을 수 없습니다. Supabase 기능이 비활성화됩니다.');
+        console.log('config.js 파일을 생성하고 Supabase 설정을 추가하세요.');
+        return;
+    }
+    
     // config.js에서 Supabase 설정 확인
     if (SUPABASE_CONFIG?.url && SUPABASE_CONFIG?.anonKey) {
         if (initSupabase()) {
