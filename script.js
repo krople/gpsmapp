@@ -2,38 +2,28 @@ let supabaseClient = null;
 let currentPosition = null;
 let map = null;
 let markers = [];
-let infoWindows = [];
 
-// Google Maps 초기화
+// Leaflet 지도 초기화
 function initMap() {
     // 기본 위치는 서울
-    const center = { lat: 37.5665, lng: 126.9780 };
+    map = L.map('map').setView([37.5665, 126.9780], 12);
     
-    map = new google.maps.Map(document.getElementById('map'), {
-        zoom: 12,
-        center: center,
-        mapTypeControl: true,
-        streetViewControl: true,
-        fullscreenControl: true,
-        zoomControl: true,
-        styles: [
-            {
-                featureType: 'poi',
-                elementType: 'labels',
-                stylers: [{ visibility: 'on' }]
-            }
-        ]
-    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
     
-    // Supabase 설정 및 위치 로드는 지도 초기화 후에
-    if (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG?.url && SUPABASE_CONFIG?.anonKey) {
-        initSupabase();
-        loadAndDisplayLocations();
-    }
+    // 지도 크기 조정
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 100);
 }
 
-// 페이지 로드 시 Google Maps가 자동으로 initMap 호출
-window.initMap = initMap;
+// 페이지 로드 시 초기화
+window.addEventListener('DOMContentLoaded', () => {
+    initMap();
+    loadSettings();
+});
 
 // Supabase 클라이언트 초기화
 function initSupabase() {
@@ -97,101 +87,84 @@ async function loadAndDisplayLocations() {
 // 지도에 위치들을 마커로 표시
 function displayLocationsOnMap(locations) {
     // 기존 마커 제거
-    markers.forEach(marker => marker.setMap(null));
+    markers.forEach(marker => map.removeLayer(marker));
     markers = [];
-    infoWindows.forEach(infoWindow => infoWindow.close());
-    infoWindows = [];
 
     if (!locations || locations.length === 0) {
         return;
     }
 
-    const bounds = new google.maps.LatLngBounds();
+    const bounds = [];
 
     // 각 위치에 마커 추가
     locations.forEach((loc, index) => {
         const isFirst = index === 0;
-        const position = { lat: loc.latitude, lng: loc.longitude };
+        const position = [loc.latitude, loc.longitude];
         
         // 마커 생성
-        const marker = new google.maps.Marker({
-            position: position,
-            map: map,
-            title: isFirst ? '최근 위치' : `위치 #${locations.length - index}`,
-            label: {
-                text: isFirst ? '📍' : String(locations.length - index),
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 'bold'
-            },
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 15,
-                fillColor: isFirst ? '#28a745' : '#667eea',
-                fillOpacity: 1,
-                strokeColor: 'white',
-                strokeWeight: 3
-            }
-        });
+        const marker = L.marker(position, {
+            icon: L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="
+                    background: ${isFirst ? '#28a745' : '#667eea'};
+                    color: white;
+                    border-radius: 50%;
+                    width: 35px;
+                    height: 35px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                    font-size: 14px;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                ">${isFirst ? '📍' : (locations.length - index)}</div>`,
+                iconSize: [35, 35],
+                iconAnchor: [17, 17]
+            })
+        }).addTo(map);
 
-        // 정보 창 내용
+        // 팝업 내용
         const date = new Date(loc.timestamp);
         const dateStr = date.toLocaleString('ko-KR');
         const mapUrl = `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
         
-        const infoWindow = new google.maps.InfoWindow({
-            content: `
-                <div style="min-width: 200px; padding: 10px;">
-                    <strong style="color: ${isFirst ? '#28a745' : '#667eea'}; font-size: 16px;">
-                        ${isFirst ? '📍 최근 위치' : `#${locations.length - index} 위치`}
-                    </strong><br>
-                    <small style="color: #666;">${dateStr}</small><br>
-                    <div style="margin: 8px 0; font-size: 12px; line-height: 1.5;">
-                        <strong>위도:</strong> ${loc.latitude.toFixed(6)}<br>
-                        <strong>경도:</strong> ${loc.longitude.toFixed(6)}<br>
-                        <strong>정확도:</strong> ${loc.accuracy ? Math.round(loc.accuracy) + 'm' : '정보 없음'}
-                    </div>
-                    <a href="${mapUrl}" target="_blank" style="
-                        display: inline-block;
-                        padding: 5px 10px;
-                        background: #17a2b8;
-                        color: white;
-                        text-decoration: none;
-                        border-radius: 3px;
-                        font-size: 12px;
-                        margin-top: 5px;
-                    ">🗺️ 상세보기</a>
+        marker.bindPopup(`
+            <div style="min-width: 200px;">
+                <strong style="color: ${isFirst ? '#28a745' : '#667eea'}; font-size: 16px;">
+                    ${isFirst ? '📍 최근 위치' : `#${locations.length - index} 위치`}
+                </strong><br>
+                <small style="color: #666;">${dateStr}</small><br>
+                <div style="margin: 8px 0; font-size: 12px; line-height: 1.5;">
+                    <strong>위도:</strong> ${loc.latitude.toFixed(6)}<br>
+                    <strong>경도:</strong> ${loc.longitude.toFixed(6)}<br>
+                    <strong>정확도:</strong> ${loc.accuracy ? Math.round(loc.accuracy) + 'm' : '정보 없음'}
                 </div>
-            `
-        });
+                <a href="${mapUrl}" target="_blank" style="
+                    display: inline-block;
+                    padding: 5px 10px;
+                    background: #17a2b8;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 3px;
+                    font-size: 12px;
+                    margin-top: 5px;
+                ">🗺️ Google Maps</a>
+            </div>
+        `);
 
-        marker.addListener('click', () => {
-            // 다른 정보창 닫기
-            infoWindows.forEach(iw => iw.close());
-            infoWindow.open(map, marker);
-        });
-
+        // 마커에 데이터 저장
+        marker.locationData = { lat: loc.latitude, lng: loc.longitude };
+        
         markers.push(marker);
-        infoWindows.push(infoWindow);
-        bounds.extend(position);
+        bounds.push(position);
     });
 
     // 모든 마커가 보이도록 지도 조정
-    if (markers.length > 0) {
+    if (bounds.length > 0) {
         map.fitBounds(bounds);
-        
-        // 마커가 하나만 있으면 적절한 줌 레벨로
-        if (markers.length === 1) {
-            google.maps.event.addListenerOnce(map, 'bounds_changed', function() {
-                map.setZoom(Math.min(15, map.getZoom()));
-            });
-        }
     }
 }
-
-
-
-// Google Maps가 로드되면 자동으로 initMap이 호출됨
 
 function getLocation() {
     // 브라우저가 Geolocation을 지원하는지 확인
@@ -245,67 +218,54 @@ function successCallback(position) {
 
     // 현재 위치를 지도에 임시 마커로 표시
     if (map) {
-        const position = { lat: lat, lng: lon };
-        
         // 이전 임시 마커 제거
         if (window.tempLocationMarker) {
-            window.tempLocationMarker.setMap(null);
+            map.removeLayer(window.tempLocationMarker);
         }
         if (window.tempLocationCircle) {
-            window.tempLocationCircle.setMap(null);
+            map.removeLayer(window.tempLocationCircle);
         }
         
         // 정확도 원 추가
-        window.tempLocationCircle = new google.maps.Circle({
-            strokeColor: '#007bff',
-            strokeOpacity: 0.8,
-            strokeWeight: 2,
+        window.tempLocationCircle = L.circle([lat, lon], {
+            color: '#007bff',
             fillColor: '#007bff',
             fillOpacity: 0.2,
-            map: map,
-            center: position,
             radius: accuracy || 50
-        });
+        }).addTo(map);
         
         // 임시 마커 추가 (파란색)
-        window.tempLocationMarker = new google.maps.Marker({
-            position: position,
-            map: map,
-            title: '현재 위치 (미저장)',
-            icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 12,
-                fillColor: '#007bff',
-                fillOpacity: 1,
-                strokeColor: 'white',
-                strokeWeight: 3
-            },
-            label: {
-                text: '📍',
-                color: 'white',
-                fontSize: '12px'
-            }
-        });
+        window.tempLocationMarker = L.marker([lat, lon], {
+            icon: L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="
+                    background: #007bff;
+                    color: white;
+                    border-radius: 50%;
+                    width: 35px;
+                    height: 35px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                    font-size: 16px;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                ">📍</div>`,
+                iconSize: [35, 35],
+                iconAnchor: [17, 17]
+            })
+        }).addTo(map);
         
-        const infoWindow = new google.maps.InfoWindow({
-            content: `
-                <div style="min-width: 150px; padding: 8px;">
-                    <strong style="color: #007bff;">📍 현재 위치</strong><br>
-                    <small style="color: #999;">아직 저장되지 않음</small>
-                </div>
-            `
-        });
-        
-        window.tempLocationMarker.addListener('click', () => {
-            infoWindow.open(map, window.tempLocationMarker);
-        });
+        window.tempLocationMarker.bindPopup(`
+            <div style="min-width: 150px;">
+                <strong style="color: #007bff;">📍 현재 위치</strong><br>
+                <small style="color: #999;">아직 저장되지 않음</small>
+            </div>
+        `).openPopup();
         
         // 지도 중심을 현재 위치로 이동
-        map.setCenter(position);
-        map.setZoom(15);
-        
-        // 정보창 자동 열기
-        infoWindow.open(map, window.tempLocationMarker);
+        map.setView([lat, lon], 15);
     }
 
     showInfo();
@@ -396,26 +356,67 @@ function displayHistory(locations) {
     if (!locations || locations.length === 0) {
         historyList.innerHTML = '<p style="text-align: center; color: #666;">저장된 기록이 없습니다.</p>';
     } else {
-        historyList.innerHTML = locations.map(loc => {
+        historyList.innerHTML = locations.map((loc, index) => {
             const date = new Date(loc.timestamp);
             const dateStr = date.toLocaleString('ko-KR');
-            const mapUrl = `https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`;
             
             return `
-                <div class="history-item">
+                <div class="history-item" data-lat="${loc.latitude}" data-lng="${loc.longitude}">
                     <div class="time">⏰ ${dateStr}</div>
                     <div class="coords">
                         📍 위도: ${loc.latitude.toFixed(6)}, 경도: ${loc.longitude.toFixed(6)}<br>
                         🎯 정확도: ${loc.accuracy ? Math.round(loc.accuracy) + 'm' : '정보 없음'}
                         ${loc.altitude ? ', 고도: ' + Math.round(loc.altitude) + 'm' : ''}
                     </div>
-                    <a href="${mapUrl}" target="_blank" style="color: #17a2b8; text-decoration: none; font-size: 12px;">🗺️ 지도에서 보기</a>
+                    <button onclick="showLocationOnMap(${loc.latitude}, ${loc.longitude})" 
+                            style="
+                                background: #17a2b8;
+                                color: white;
+                                border: none;
+                                padding: 5px 12px;
+                                border-radius: 5px;
+                                cursor: pointer;
+                                font-size: 12px;
+                                margin-top: 8px;
+                            ">
+                        🗺️ 지도에서 보기
+                    </button>
                 </div>
             `;
         }).join('');
     }
 
     document.getElementById('historyBox').classList.add('show');
+}
+
+// 특정 위치를 지도에서 보여주는 함수
+function showLocationOnMap(lat, lng) {
+    if (!map) {
+        console.error('지도가 초기화되지 않았습니다.');
+        return;
+    }
+    
+    console.log('지도로 이동:', lat, lng);
+    
+    // 지도 중심을 해당 위치로 이동하고 확대
+    map.setView([lat, lng], 16);
+    
+    // 해당 위치의 마커를 찾아서 팝업 열기
+    let found = false;
+    markers.forEach(marker => {
+        const markerData = marker.locationData;
+        if (markerData && Math.abs(markerData.lat - lat) < 0.000001 && Math.abs(markerData.lng - lng) < 0.000001) {
+            marker.openPopup();
+            found = true;
+        }
+    });
+    
+    if (!found) {
+        console.warn('해당 위치의 마커를 찾을 수 없습니다.');
+    }
+    
+    // 페이지 상단(지도)으로 스크롤
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function errorCallback(error) {
