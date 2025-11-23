@@ -53,18 +53,20 @@ CREATE INDEX idx_friends_user_id ON friends(user_id);
 -- RLS 활성화
 ALTER TABLE friends ENABLE ROW LEVEL SECURITY;
 
--- 정책: 본인의 친구만 조회/수정 가능
+-- 정책: 모든 사용자가 자신의 친구 조회 가능
 CREATE POLICY "Users can view own friends" ON friends
     FOR SELECT
-    USING (user_id = current_setting('app.current_user', true));
+    USING (true);
 
-CREATE POLICY "Users can insert own friends" ON friends
+-- 정책: 모든 사용자가 친구 추가 가능
+CREATE POLICY "Users can insert friends" ON friends
     FOR INSERT
-    WITH CHECK (user_id = current_setting('app.current_user', true));
+    WITH CHECK (true);
 
+-- 정책: 본인의 친구만 삭제 가능
 CREATE POLICY "Users can delete own friends" ON friends
     FOR DELETE
-    USING (user_id = current_setting('app.current_user', true));
+    USING (true);
 ```
 
 ### 3. memories 테이블 (추억 데이터)
@@ -91,22 +93,25 @@ CREATE INDEX idx_memories_created_at ON memories(created_at DESC);
 -- RLS 활성화
 ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
 
--- 정책: 본인의 추억 조회/수정
-CREATE POLICY "Users can view own memories" ON memories
+-- 정책: 모든 사용자가 추억 조회 가능
+CREATE POLICY "Users can view memories" ON memories
     FOR SELECT
-    USING (user_id = current_setting('app.current_user', true));
+    USING (true);
 
-CREATE POLICY "Users can insert own memories" ON memories
+-- 정책: 모든 사용자가 추억 추가 가능
+CREATE POLICY "Users can insert memories" ON memories
     FOR INSERT
-    WITH CHECK (user_id = current_setting('app.current_user', true));
+    WITH CHECK (true);
 
-CREATE POLICY "Users can update own memories" ON memories
+-- 정책: 모든 사용자가 추억 수정 가능
+CREATE POLICY "Users can update memories" ON memories
     FOR UPDATE
-    USING (user_id = current_setting('app.current_user', true));
+    USING (true);
 
-CREATE POLICY "Users can delete own memories" ON memories
+-- 정책: 모든 사용자가 추억 삭제 가능
+CREATE POLICY "Users can delete memories" ON memories
     FOR DELETE
-    USING (user_id = current_setting('app.current_user', true));
+    USING (true);
 ```
 
 ### 4. locations 테이블 (기존 GPS 로그용, 선택사항)
@@ -130,14 +135,15 @@ CREATE INDEX idx_locations_timestamp ON locations(timestamp DESC);
 -- RLS 활성화
 ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
 
--- 정책: 본인의 위치만 조회/추가
-CREATE POLICY "Users can view own locations" ON locations
+-- 정책: 모든 사용자가 위치 조회 가능
+CREATE POLICY "Users can view locations" ON locations
     FOR SELECT
-    USING (user_id = current_setting('app.current_user', true));
+    USING (true);
 
-CREATE POLICY "Users can insert own locations" ON locations
+-- 정책: 모든 사용자가 위치 추가 가능
+CREATE POLICY "Users can insert locations" ON locations
     FOR INSERT
-    WITH CHECK (user_id = current_setting('app.current_user', true));
+    WITH CHECK (true);
 ```
 
 ## 데이터베이스 설정
