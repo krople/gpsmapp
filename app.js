@@ -17,14 +17,21 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initializeApp() {
+    // 로그인 확인
+    currentUser = localStorage.getItem('currentUser');
+    const currentUserId = localStorage.getItem('currentUserId');
+    
+    if (!currentUser || !currentUserId) {
+        // 로그인 안 되어 있으면 로그인 페이지로
+        window.location.href = 'login.html';
+        return;
+    }
+    
     // Supabase 초기화
     if (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG?.url && SUPABASE_CONFIG?.anonKey) {
         try {
             supabaseClient = supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
             console.log('Supabase 초기화 성공');
-            
-            // 현재 사용자 설정 (임시로 localStorage 사용)
-            currentUser = localStorage.getItem('currentUser') || promptForUsername();
             
             // 데이터 로드
             await loadFriends();
@@ -34,23 +41,28 @@ async function initializeApp() {
         }
     } else {
         console.warn('config.js 파일이 필요합니다.');
-        currentUser = promptForUsername();
     }
     
     // 이벤트 리스너 등록
     registerEventListeners();
     
+    // 사용자 이름 표시
+    const userDisplay = document.getElementById('currentUserDisplay');
+    if (userDisplay) {
+        userDisplay.textContent = `👤 ${currentUser}`;
+    }
+    
     // 메인 화면 표시
     switchScreen('main');
 }
 
-function promptForUsername() {
-    let username = prompt('닉네임을 입력하세요:');
-    if (username) {
-        localStorage.setItem('currentUser', username);
-        return username;
+// 로그아웃 함수
+function logout() {
+    if (confirm('로그아웃 하시겠습니까?')) {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('currentUserId');
+        window.location.href = 'login.html';
     }
-    return 'Guest';
 }
 
 // ===== 이벤트 리스너 =====
@@ -664,3 +676,4 @@ window.removeCreator = removeCreator;
 window.removeTag = removeTag;
 window.removePhoto = removePhoto;
 window.showMemoryDetail = showMemoryDetail;
+window.logout = logout;

@@ -25,6 +25,11 @@ CREATE POLICY "Anyone can view app_users" ON app_users
     FOR SELECT
     USING (true);
 
+-- 정책: 누구나 새 계정 생성 가능
+CREATE POLICY "Anyone can insert app_users" ON app_users
+    FOR INSERT
+    WITH CHECK (true);
+
 -- 정책: 본인만 수정 가능
 CREATE POLICY "Users can update own data" ON app_users
     FOR UPDATE

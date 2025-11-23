@@ -18,6 +18,12 @@
             <button id="addMemoryBtn" class="add-btn">+</button>
         </header>
 
+        <!-- 사용자 정보 및 로그아웃 -->
+        <div style="padding: 10px 20px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+            <span id="currentUserDisplay" style="color: #667eea; font-weight: 600;"></span>
+            <button onclick="logout()" style="padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">로그아웃</button>
+        </div>
+
         <!-- 검색창 -->
         <div class="search-container">
             <input type="text" id="userSearch" placeholder="🔍 친구 닉네임 검색..." class="search-input">
