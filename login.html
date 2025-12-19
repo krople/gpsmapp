@@ -212,7 +212,7 @@
             
             if (savedUser && savedUserId) {
                 // 이미 로그인되어 있으면 메인 페이지로
-                window.location.href = 'index_new.html';
+                window.location.href = 'index.html';
             }
         });
 
@@ -276,7 +276,7 @@
                     
                     // 1.5초 후 메인 페이지로 이동
                     setTimeout(() => {
-                        window.location.href = 'index_new.html';
+                        window.location.href = 'index.html';
                     }, 1500);
                 } else {
                     throw new Error('사용자 등록에 실패했습니다.');

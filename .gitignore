@@ -1,5 +1,5 @@
 # Supabase 설정 파일 (민감한 정보 포함)
-# config.js
+config.js
 
 # Node modules
 node_modules/

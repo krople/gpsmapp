@@ -11,7 +11,11 @@ CREATE TABLE app_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username TEXT UNIQUE NOT NULL,
     email TEXT UNIQUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    subscription_plan TEXT DEFAULT 'free',
+    credits INTEGER DEFAULT 0,
+    monthly_locks_created INTEGER DEFAULT 0,
+    last_reset_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 인덱스
@@ -82,6 +86,8 @@ CREATE TABLE memories (
     creators TEXT[],
     tagged_users TEXT[],
     photos TEXT[],
+    lock_type TEXT DEFAULT 'standard',
+    skin_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -293,10 +299,94 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 3. **API 키 보호**: `config.js`를 `.gitignore`에 추가하여 공개 저장소에 업로드 방지
 4. **CORS 설정**: Supabase 대시보드에서 허용할 도메인 설정
 
+### 5. user_inventory 테이블 (신규 - 사용자 아이템 인벤토리)
+
+```sql
+CREATE TABLE user_inventory (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL,
+    item_type TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    purchased_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 인덱스
+CREATE INDEX idx_user_inventory_user_id ON user_inventory(user_id);
+CREATE INDEX idx_user_inventory_item_type ON user_inventory(item_type);
+
+-- RLS 활성화
+ALTER TABLE user_inventory ENABLE ROW LEVEL SECURITY;
+
+-- 정책: 본인의 인벤토리만 조회 가능
+CREATE POLICY "Users can view own inventory" ON user_inventory
+    FOR SELECT
+    USING (true);
+
+-- 정책: 시스템만 인벤토리 추가 가능 (결제 처리 후)
+CREATE POLICY "System can insert inventory" ON user_inventory
+    FOR INSERT
+    WITH CHECK (true);
+```
+
+### 6. lock_skins 테이블 (신규 - 자물쇠 스킨 상품 정보)
+
+```sql
+CREATE TABLE lock_skins (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    icon_url TEXT,
+    rarity TEXT DEFAULT 'common',
+    price_coins INTEGER DEFAULT 100,
+    notification_radius INTEGER DEFAULT 100,
+    is_premium_exclusive BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 기본 스킨 데이터 삽입
+INSERT INTO lock_skins (id, name, description, rarity, price_coins, notification_radius, is_premium_exclusive) VALUES
+('standard', '기본 자물쇠', '일반 자물쇠입니다.', 'common', 0, 100, false),
+('gold', '황금 자물쇠', '황금빛으로 빛나는 특별한 자물쇠입니다.', 'rare', 500, 200, false),
+('diamond', '다이아몬드 자물쇠', '최고급 다이아몬드 자물쇠입니다.', 'epic', 1000, 300, true),
+('rainbow', '무지개 자물쇠', '무지개 효과가 있는 자물쇠입니다.', 'rare', 700, 200, false);
+
+-- RLS 활성화
+ALTER TABLE lock_skins ENABLE ROW LEVEL SECURITY;
+
+-- 정책: 모두 조회 가능
+CREATE POLICY "Anyone can view lock_skins" ON lock_skins
+    FOR SELECT
+    USING (true);
+```
+
+## 월간 자물쇠 카운트 리셋 함수 (자동화)
+
+```sql
+-- 매월 1일에 모든 사용자의 monthly_locks_created를 0으로 리셋하는 함수
+CREATE OR REPLACE FUNCTION reset_monthly_locks()
+RETURNS void AS $$
+BEGIN
+    UPDATE app_users
+    SET monthly_locks_created = 0,
+        last_reset_date = NOW()
+    WHERE DATE_TRUNC('month', last_reset_date) < DATE_TRUNC('month', NOW());
+END;
+$$ LANGUAGE plpgsql;
+
+-- Supabase의 pg_cron 확장을 사용한 스케줄링 (Supabase Pro 이상 필요)
+-- 또는 클라이언트에서 로그인 시 체크하여 리셋하는 방식 사용
+```
+
 ## 다음 단계
 
-1. Supabase Auth 통합 (이메일/소셜 로그인)
-2. 실시간 알림 기능 추가 (친구가 나를 태그할 때)
-3. Storage를 사용한 실제 사진 업로드 구현
-4. GPS 기반 백그라운드 알림 (Service Worker)
-5. 친구 요청/승인 시스템 개선
+1. **수익화 기능 구현**
+   - 사용자 구독 상태 확인 로직
+   - 자물쇠 생성 제한 (무료 사용자: 월 3개)
+   - 고급 자물쇠 구매 및 인벤토리 관리
+2. Supabase Auth 통합 (이메일/소셜 로그인)
+3. 실시간 알림 기능 추가 (친구가 나를 태그할 때)
+4. Storage를 사용한 실제 사진 업로드 구현
+5. GPS 기반 백그라운드 알림 (Service Worker)
+6. 친구 요청/승인 시스템 개선
+7. 결제 모듈 연동 (토스 페이먼츠 또는 Stripe)

@@ -3,62 +3,174 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPS 위치 저장</title>
+    <title>추억 자물쇠 - Memory Lock</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="app.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
 </head>
 <body>
-    <div class="map-container" id="map"></div>
-    
-    <div class="container">
-        <h1>📍 내 위치 저장하기</h1>
-        
-        <div class="button-container">
-            <button id="getLocationBtn" onclick="getLocation()">위치 정보 가져오기</button>
-            <button id="saveLocationBtn" class="save-btn" onclick="saveLocation()" disabled>위치 저장하기</button>
-            <button id="historyBtn" class="history-btn" onclick="loadHistory()">저장 기록 보기</button>
+    <!-- 메인 화면 -->
+    <div id="mainScreen" class="screen active">
+        <header class="app-header">
+            <h1>🔒 추억 자물쇠</h1>
+            <button id="addMemoryBtn" class="add-btn">+</button>
+        </header>
+
+        <!-- 사용자 정보 및 로그아웃 -->
+        <div style="padding: 10px 20px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
+            <span id="currentUserDisplay" style="color: #667eea; font-weight: 600;"></span>
+            <button onclick="logout()" style="padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">로그아웃</button>
         </div>
 
-        <div class="loading" id="loading">위치 정보를 가져오는 중</div>
-        
-        <div class="error" id="error"></div>
-        <div class="success" id="success"></div>
-        
-        <div class="info-box" id="infoBox">
-            <div class="info-item">
-                <span class="label">위도 (Latitude)</span>
-                <span class="value" id="latitude">-</span>
-            </div>
-            <div class="info-item">
-                <span class="label">경도 (Longitude)</span>
-                <span class="value" id="longitude">-</span>
-            </div>
-            <div class="info-item">
-                <span class="label">정확도 (Accuracy)</span>
-                <span class="value" id="accuracy">-</span>
-            </div>
-            <div class="info-item">
-                <span class="label">고도 (Altitude)</span>
-                <span class="value" id="altitude">-</span>
-            </div>
-            <div class="info-item">
-                <span class="label">속도 (Speed)</span>
-                <span class="value" id="speed">-</span>
-            </div>
-            <div style="text-align: center;">
-                <a class="map-link" id="mapLink" href="#" target="_blank">🗺️ 지도에서 보기</a>
-            </div>
+        <!-- 검색창 -->
+        <div class="search-container">
+            <input type="text" id="userSearch" placeholder="🔍 친구 닉네임 검색..." class="search-input">
+            <div id="searchResults" class="search-results"></div>
         </div>
 
-        <div class="history-box" id="historyBox">
-            <h3 style="margin-bottom: 15px;">📜 저장 기록</h3>
-            <div id="historyList"></div>
+        <!-- 친한 친구 목록 -->
+        <section class="friends-section">
+            <h2>👥 친한 친구</h2>
+            <div id="friendsList" class="friends-list">
+                <p class="empty-message">아직 친구가 없습니다.</p>
+            </div>
+        </section>
+
+        <!-- GPS 히스토리 -->
+        <section class="history-section">
+            <h2>📍 추억 히스토리</h2>
+            <div id="memoryHistory" class="memory-history">
+                <p class="empty-message">아직 저장된 추억이 없습니다.</p>
+            </div>
+        </section>
+
+        <!-- 하단 네비게이션 -->
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-screen="main">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">홈</span>
+            </button>
+            <button class="nav-btn" data-screen="map">
+                <span class="nav-icon">🗺️</span>
+                <span class="nav-label">지도</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- 서브 화면 (GPS 저장) -->
+    <div id="subScreen" class="screen">
+        <header class="sub-header">
+            <button id="backToMain" class="back-btn">←</button>
+            <h2>새 추억 만들기</h2>
+        </header>
+
+        <div class="sub-content">
+            <!-- GPS 정보 -->
+            <div class="gps-info-section">
+                <div class="info-box">
+                    <label>📍 현재 위치</label>
+                    <div class="gps-display">
+                        <span id="currentGPS">위치 정보를 가져오는 중...</span>
+                        <button id="showMapBtn" class="icon-btn">🗺️</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 제작자 추가 -->
+            <div class="creators-section">
+                <label>👥 제작자 추가 (최대 10명)</label>
+                <button id="addCreatorsBtn" class="select-btn">제작자 선택하기</button>
+                <div id="selectedCreators" class="selected-list"></div>
+            </div>
+
+            <!-- 태그 -->
+            <div class="tag-section">
+                <label>🏷️ 친구 태그하기</label>
+                <input type="text" id="tagInput" placeholder="친구 닉네임 입력..." class="tag-input">
+                <div id="taggedUsers" class="tagged-list"></div>
+            </div>
+
+            <!-- 자물쇠 만들기 버튼 -->
+            <button id="createLockBtn" class="create-lock-btn">🔒 자물쇠 만들기</button>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- 지도 화면 -->
+    <div id="mapScreen" class="screen">
+        <header class="map-header">
+            <h2>🗺️ 추억 지도</h2>
+        </header>
+
+        <div id="mainMap" class="main-map"></div>
+
+        <!-- 하단 네비게이션 -->
+        <nav class="bottom-nav">
+            <button class="nav-btn" data-screen="main">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">홈</span>
+            </button>
+            <button class="nav-btn active" data-screen="map">
+                <span class="nav-icon">🗺️</span>
+                <span class="nav-label">지도</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- 편집 모달 (자물쇠 내용 작성) -->
+    <div id="editModal" class="modal">
+        <div class="modal-content large">
+            <button class="close-modal">×</button>
+            <h2>🔒 추억 채우기</h2>
+
+            <div class="edit-form">
+                <!-- 이름 정하기 -->
+                <div class="form-group">
+                    <label>📝 이름 정하기</label>
+                    <input type="text" id="memoryName" placeholder="예: 추억의 공간, 어두운 곳" class="form-input">
+                </div>
+
+                <!-- 설명 -->
+                <div class="form-group">
+                    <label>💭 추억 설명</label>
+                    <textarea id="memoryDescription" placeholder="이곳에서의 추억을 적어보세요..." class="form-textarea"></textarea>
+                </div>
+
+                <!-- 사진 업로드 -->
+                <div class="form-group">
+                    <label>📷 사진 추가 (여러 장 가능)</label>
+                    <input type="file" id="photoUpload" accept="image/*" multiple class="file-input">
+                    <div id="photoPreview" class="photo-preview"></div>
+                </div>
+
+                <!-- 완료 버튼 -->
+                <button id="completeLockBtn" class="complete-btn">🔒 자물쇠 채우기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 지도 팝업 모달 -->
+    <div id="mapPopup" class="modal">
+        <div class="modal-content">
+            <button class="close-modal">×</button>
+            <div id="popupMap" class="popup-map"></div>
+        </div>
+    </div>
+
+    <!-- 제작자 선택 모달 -->
+    <div id="creatorsModal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal">×</button>
+            <h3>👥 제작자 선택 (최대 10명)</h3>
+            <div id="creatorsSelection" class="creators-selection"></div>
+            <button id="confirmCreators" class="confirm-btn">선택 완료</button>
+        </div>
+    </div>
+
+    <!-- 알림 토스트 -->
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
 </body>
 </html>
